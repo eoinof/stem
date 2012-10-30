@@ -2,7 +2,7 @@
 Helper functions for working with tor as a process.
 
 :NO_TORRC:
-  when provided as a torrc_path tor is ran with a blank configuration
+  when provided as a torrc_path tor is run with a blank configuration
 
 :DEFAULT_INIT_TIMEOUT:
   number of seconds before we time out our attempt to start a tor instance
