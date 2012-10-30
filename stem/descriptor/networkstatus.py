@@ -14,7 +14,7 @@ dir-spec. Documents can be obtained from a few sources...
 * document footer
 
 Of these, the router status entry section can be quite large (on the order of
-hundreds of kilobytes). As such we provide a couple of methods for reading 
+hundreds of kilobytes). As such we provide a couple of methods for reading
 network status documents...
 
 * :class:`stem.descriptor.networkstatus.NetworkStatusDocumentV3` constructor
