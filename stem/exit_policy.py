@@ -474,8 +474,8 @@ class ExitPolicyRule(object):
     Provides the string representation of our policy. This does not
     necessarily match the rule that we were constructed from (due to things
     like IPv6 address collapsing or the multiple representations that our mask
-    can have). However, it is a valid that would be accepted by our constructor
-    to re-create this rule.
+    can have). However, it is a valid rule that would be accepted by our
+    constructor to re-create this rule.
     """
     
     if self._str_representation is None:
