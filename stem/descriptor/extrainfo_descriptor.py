@@ -280,7 +280,7 @@ class ExtraInfoDescriptor(stem.descriptor.Descriptor):
   def __init__(self, raw_contents, validate = True):
     """
     Extra-info descriptor constructor. By default this validates the
-    descriptor's content as it's parsed. This validation can be disables to
+    descriptor's content as it's parsed. This validation can be disabled to
     either improve performance or be accepting of malformed data.
     
     :param str raw_contents: extra-info content provided by the relay
