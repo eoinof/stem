@@ -68,7 +68,6 @@ class TestNetworkStatus(unittest.TestCase):
     
     if not os.path.exists(consensus_path):
       test.runner.skip(self, "(no cached-microdesc-consensus)")
-      return
     elif stem.util.system.is_windows():
       test.runner.skip(self, "(unavailable on windows)")
       return

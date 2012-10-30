@@ -89,22 +89,16 @@ To read this file we'll use the :class:`~stem.descriptor.reader.DescriptorReader
   from stem.descriptor.reader import DescriptorReader
   from stem.util import str_tools
   
-  # provides a mapping of observed bandwidth to the relay nicknames
-  def get_bw_to_relay():
-    bw_to_relay = {}
-    
-    with DescriptorReader(["/home/atagar/.tor/cached-descriptors"]) as reader:
-      for desc in reader:
-        if desc.exit_policy.is_exiting_allowed():
-          bw_to_relay.setdefault(desc.observed_bandwidth, []).append(desc.nickname)
-    
-    return bw_to_relay
+  bw_to_relay = {} # mapping of observed bandwidth to the relay nicknames
+  
+  with DescriptorReader(["/home/atagar/.tor/cached-descriptors"]) as reader:
+    for desc in reader:
+      if desc.exit_policy.is_exiting_allowed():
+        bw_to_relay.setdefault(desc.observed_bandwidth, []).append(desc.nickname)
   
   # prints the top fifteen relays
   
-  bw_to_relay = get_bw_to_relay()
   count = 1
-  
   for bw_value in sorted(bw_to_relay.keys(), reverse = True):
     for nickname in bw_to_relay[bw_value]:
       print "%i. %s (%s/s)" % (count, nickname, str_tools.get_size_label(bw_value, 2))
@@ -136,15 +130,25 @@ This can be easily done through the controller too...
 
 ::
 
-  def get_bw_to_relay():
-    bw_to_relay = {}
+  import sys 
+  from stem.control import Controller
+  from stem.util import str_tools
+  
+  bw_to_relay = {} # mapping of observed bandwidth to the relay nicknames
+  
+  with Controller.from_port(control_port = 9051) as controller:
+    controller.authenticate()
     
-    with Controller.from_port(control_port = 9051) as controller:
-      controller.authenticate()
+    for desc in controller.get_server_descriptors():
+      if desc.exit_policy.is_exiting_allowed():
+        bw_to_relay.setdefault(desc.observed_bandwidth, []).append(desc.nickname)
+  
+  count = 1 
+  for bw_value in sorted(bw_to_relay.keys(), reverse = True):
+    for nickname in bw_to_relay[bw_value]:
+      print "%i. %s (%s/s)" % (count, nickname, str_tools.get_size_label(bw_value, 2))
+      count += 1
       
-      for desc in controller.get_server_descriptors():
-        if desc.exit_policy.is_exiting_allowed():
-          bw_to_relay.setdefault(desc.observed_bandwidth, []).append(desc.nickname)
-    
-    return bw_to_relay
+      if count > 15: 
+        sys.exit()
 

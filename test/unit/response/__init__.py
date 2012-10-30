@@ -3,12 +3,13 @@ Unit tests for stem.response.
 """
 
 __all__ = [
-  "control_message",
-  "control_line",
-  "getinfo",
-  "getconf",
-  "protocolinfo",
   "authchallenge",
-  "singleline"
+  "control_line",
+  "control_message",
+  "getconf",
+  "getinfo",
+  "mapaddress"
+  "protocolinfo",
+  "singleline",
 ]
 

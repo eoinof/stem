@@ -6,8 +6,9 @@ __all__ = [
   "connection",
   "descriptor",
   "exit_policy",
-  "socket",
+  "response",
   "util",
+  "tutorial",
   "version",
 ]
 
