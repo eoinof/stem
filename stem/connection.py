@@ -428,7 +428,7 @@ def authenticate_none(controller, suppress_ctl_errors = True):
     auth_response = _msg(controller, "AUTHENTICATE")
     
     # if we got anything but an OK response then error
-    if str(auth_response) != "OK":
+    if not auth_response.is_ok():
       try: controller.connect()
       except: pass
       
@@ -484,7 +484,7 @@ def authenticate_password(controller, password, suppress_ctl_errors = True):
     auth_response = _msg(controller, "AUTHENTICATE \"%s\"" % password)
     
     # if we got anything but an OK response then error
-    if str(auth_response) != "OK":
+    if not auth_response.is_ok():
       try: controller.connect()
       except: pass
       
@@ -555,7 +555,7 @@ def authenticate_cookie(controller, cookie_path, suppress_ctl_errors = True):
     auth_response = _msg(controller, msg)
     
     # if we got anything but an OK response then error
-    if str(auth_response) != "OK":
+    if not auth_response.is_ok():
       try: controller.connect()
       except: pass
       
