@@ -4,4 +4,8 @@ test/data/
 docs/_build/
 docs/stem.*
 docs/modules.rst
+docs/download.rst
+docs/index.rst
+*.wpu
+*.wpr
 
