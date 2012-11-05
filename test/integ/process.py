@@ -14,6 +14,10 @@ import test.runner
 import stem.util.system
 
 class TestProcess(unittest.TestCase):
+  def setUp(self):
+    if not os.path.exists(DATA_DIRECTORY):
+      os.makedirs(DATA_DIRECTORY)
+  
   def test_launch_tor_with_config(self):
     """
     Exercises launch_tor_with_config.
