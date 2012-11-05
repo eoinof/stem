@@ -4,7 +4,7 @@ Functions for connecting and authenticating to the tor process.
 The :func:`~stem.connection.connect_port` and
 :func:`~stem.connection.connect_socket_file` functions give an easy, one line
 method for getting an authenticated control connection. This is handy for CLI
-applications and the python interactive interpretor, but does several things
+applications and the python interactive interpreter, but does several things
 that makes it undesirable for applications (uses stdin/stdout, suppresses
 exceptions, etc).
 
