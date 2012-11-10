@@ -39,6 +39,7 @@ import stem.exit_policy
 import stem.version
 import stem.util.connection
 import stem.util.tor_tools
+import stem.util.log as log
 
 # relay descriptors must have exactly one of the following
 REQUIRED_FIELDS = (
@@ -593,17 +594,9 @@ class RelayDescriptor(ServerDescriptor):
     
     super(RelayDescriptor, self).__init__(raw_contents, validate, annotations)
     
-    # if we have a fingerprint then checks that our fingerprint is a hash of
-    # our signing key
-    
-    if validate and self.fingerprint and stem.prereq.is_rsa_available():
-      import rsa
-      pubkey = rsa.PublicKey.load_pkcs1(self.signing_key)
-      der_encoded = pubkey.save_pkcs1(format = "DER")
-      key_hash = hashlib.sha1(der_encoded).hexdigest()
-      
-      if key_hash != self.fingerprint.lower():
-        raise ValueError("Hash of our signing key doesn't match our fingerprint. Signing key hash: %s, fingerprint: %s" % (key_hash, self.fingerprint.lower()))
+    if validate and not self.is_valid():
+      log.error("Descriptor info not valid")
+      raise ValueError("Invalid data")
   
   def is_valid(self):
     """
@@ -614,31 +607,152 @@ class RelayDescriptor(ServerDescriptor):
     :returns: **True** if our signature matches our content, **False** otherwise
     """
     
-    raise NotImplementedError # TODO: finish implementing
+    #Ensure the digest has been calculated
+    self.digest()
     
     # without validation we may be missing our signature
-    if not self.signature: return False
+    # NOTE: I've no idea what the above comment means!
+    # TODO - check the exact behaviour in this instance?
+    if not self.signature:
+      log.warn("Signature missing")
+      return False
     
-    # gets base64 encoded bytes of our signature without newlines nor the
-    # "-----[BEGIN|END] SIGNATURE-----" header/footer
+    #Options:
+    #  A - Use the python-rsa library if it is installed? [and only token messing]
+    #  B - Use the regular python-crypto libs & some proper messing/maths!
+    if stem.prereq.is_rsa_available():
+      import rsa
+      pubkey = rsa.PublicKey.load_pkcs1(self.signing_key)
+      der_encoded = pubkey.save_pkcs1(format = "DER")
+      key_hash = hashlib.sha1(der_encoded).hexdigest()
+      
+      #TODO - determine the purpose of allowing a NULL fingerprint ?
+      if self.fingerprint:
+        if key_hash != self.fingerprint.lower():
+          log.error("Hash of our signing key doesn't match our fingerprint. Signing key hash: %s, fingerprint: %s" % (key_hash, self.fingerprint.lower()))
+          return False
+      else:
+        log.warn("No fingerprint for this descriptor")
+        #TODO - should we return False here?
+        
+      if self._verify1(pubkey):
+        return True
+      else:
+        log.error("Failed to verify descriptor")
+        return False
     
-    sig_content = self.signature.replace("\n", "")[25:-23]
-    sig_bytes = base64.b64decode(sig_content)
-    
-    # TODO: Decrypt the signature bytes with the signing key and remove
-    # the PKCS1 padding to get the original message, and encode the message
-    # in hex and compare it to the digest of the descriptor.
+    else:
+      
+      keyAsString = ''.join(self.signing_key.split('\n')[1:4])
+      keyAsDer = base64.b64decode(keyAsString)
+      keyDerHash = hashlib.sha1(keyAsDer).hexdigest()
+      
+      # if we have a fingerprint then check that our fingerprint is a hash of
+      # our signing key
+      #TODO - what is the purpose of allowing a NULL fingerprint ?
+      if self.fingerprint:
+        if keyDerHash != self.fingerprint.lower():
+          log.warn("Hash of our signing key doesn't match our fingerprint. Signing key hash: %s, fingerprint: %s" % (keyDerHash, self.fingerprint.lower()))
+          return False
+      else:
+        log.warn("No fingerprint for this descriptor")
+      
+      from Crypto.Util import asn1
+      seq = asn1.DerSequence()
+      seq.decode(keyAsDer)
+      
+      if self._verify2(seq):
+        return True
+      else:
+        log.error("Failed to verify descriptor")
+        return False
     
     return True
   
   def digest(self):
     if self._digest is None:
       # our digest is calculated from everything except our signature
-      raw_content, ending = str(self), "\nrouter-signature\n"
-      raw_content = raw_content[:raw_content.find(ending) + len(ending)]
-      self._digest = hashlib.sha1(raw_content).hexdigest().upper()
+      raw_descriptor = str(self)
+      startToken = "router "
+      sigToken = "\nrouter-signature\n"
+      start = raw_descriptor.find(startToken)
+      sig = raw_descriptor.find(sigToken) + len(sigToken)
+      if start >= 0 or sig >= 0 or sig > start:
+        forDigest = raw_descriptor[start:sig]
+        digestHash = hashlib.sha1(forDigest)
+        self._digest = digestHash.digest()
+      else:
+        log.warn("unable to calculate digest for descriptor")
+        #TODO should we raise here ?
     
     return self._digest
+  
+  def _verify1(self, pub_key):
+    
+    #Based on rsa.verify
+    # but without the hash lib detection as this is not in our signature.
+    from rsa import common, transform, core, varblock
+    from rsa._compat import b
+    
+    sigAsString = ''.join(self.signature.split('\n')[1:4])
+    sigAsBytes = base64.b64decode(sigAsString)
+    blocksize = common.byte_size(pub_key.n)
+    encrypted = transform.bytes2int(sigAsBytes)
+    decrypted = core.decrypt_int(encrypted, pub_key.e, pub_key.n)
+    clearsig = transform.int2bytes(decrypted, blocksize)
+    
+    # If we can't find the signature  marker, verification failed.
+    if clearsig[0:2] != b('\x00\x01'):
+      log.error("Verification failed, signature marker not found")
+      return False
+    
+    # Find the 00 separator between the padding and the payload
+    try:
+      sep_idx = clearsig.index(b('\x00'), 2)
+    except ValueError:
+      log.error("Verification failed, seperator not found")
+      return False
+    
+    # Get the hashed signature
+    signature_hash = clearsig[sep_idx+1:]
+    if signature_hash != self._digest:
+      log.error("Verification failed, signature does not match digest")
+      return False
+    
+    return True
+  
+  def _verify2(self, seq):
+    from Crypto.Util.number import bytes_to_long, long_to_bytes
+    
+    sigAsString = ''.join(self.signature.split('\n')[1:4])
+    sigAsBytes = base64.b64decode(sigAsString)
+    sigAsLong = bytes_to_long(sigAsBytes)
+    
+    #PROPER MESSING!!
+    decryptedInt = pow(sigAsLong, seq[1] ,seq[0])
+    decryptedBytes = long_to_bytes(decryptedInt)
+    try:
+      sep_idx = decryptedBytes.index('\x00', 2)
+    except ValueError:
+      log.error("Verification failed, seperator not found")
+      return False
+    
+    messageBuffer = decryptedBytes[sep_idx+1:]
+    if messageBuffer != self._digest:
+      log.warn("Signature does not verify digest:")
+      return False
+    
+    # NOTE: It would be way nicer to use a crypto lib to do this..
+    # But the code below does not work as expected...
+    #######################################################
+    ###from Crypto.PublicKey import RSA
+    ###publicKey = RSA.construct((seq[0], seq[1]))
+    ###if not publicKey.verify(self._digest, (sigAsLong,)):
+    ###  log.warn("Signature does not verify digest:")
+    ###  return False
+    #######################################################
+    
+    return True
   
   def _parse(self, entries, validate):
     entries = dict(entries) # shallow copy since we're destructive
