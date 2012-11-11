@@ -387,6 +387,15 @@ class TestServerDescriptor(unittest.TestCase):
     desc = BridgeDescriptor(desc_text)
     self.assertEquals(expected_address_alt, desc.address_alt)
   
+  def test_server_descriptor(self):
+      """
+      Constructs a server descriptor.
+      """
+      try:
+        RelayDescriptor = get_relay_server_descriptor()
+      except Exception, e:
+        fail("Failed to create a Relay Descriptor")  
+        
   def _expect_invalid_attr(self, desc_text, attr = None, expected_value = None):
     """
     Asserts that construction will fail due to desc_text having a malformed
