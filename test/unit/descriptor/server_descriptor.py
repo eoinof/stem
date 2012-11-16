@@ -248,10 +248,6 @@ class TestServerDescriptor(unittest.TestCase):
     Checks that a fingerprint matching the hash of our signing key will validate.
     """
     
-    if not stem.prereq.is_rsa_available():
-      test.runner.skip(self, "(rsa module unavailable)")
-      return
-    
     fingerprint = "4F0C 867D F0EF 6816 0568 C826 838F 482C EA7C FE44"
     desc = get_relay_server_descriptor({"opt fingerprint": fingerprint})
     self.assertEquals(fingerprint.replace(" ", ""), desc.fingerprint)
@@ -261,10 +257,6 @@ class TestServerDescriptor(unittest.TestCase):
     Checks that, with a correctly formed fingerprint, we'll fail validation if
     it doesn't match the hash of our signing key.
     """
-    
-    if not stem.prereq.is_rsa_available():
-      test.runner.skip(self, "(rsa module unavailable)")
-      return
     
     fingerprint = "4F0C 867D F0EF 6816 0568 C826 838F 482C EA7C FE45"
     desc_text = get_relay_server_descriptor({"opt fingerprint": fingerprint}, content = True)

@@ -17,7 +17,6 @@ series). Other requirements for complete functionality are...
   is_python_26 - checks if python 2.6 or later is available
   is_python_27 - checks if python 2.7 or later is available
   
-  is_rsa_available - checks if the rsa module is available
 """
 
 import sys
@@ -58,21 +57,6 @@ def is_python_27():
   """
   
   return _check_version(7)
-
-def is_rsa_available():
-  global IS_RSA_AVAILABLE
-  
-  if IS_RSA_AVAILABLE == None:
-    try:
-      import rsa
-      IS_RSA_AVAILABLE = True
-    except ImportError:
-      IS_RSA_AVAILABLE = False
-      
-      msg = "Unable to import the rsa module. Because of this we'll be unable to verify descriptor signature integrity."
-      log.log_once("stem.prereq.is_rsa_available", log.INFO, msg)
-  
-  return IS_RSA_AVAILABLE
 
 def _check_version(minor_req):
   major_version, minor_version = sys.version_info[0:2]
