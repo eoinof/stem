@@ -10,7 +10,7 @@ import stem.prereq
 import stem.descriptor.server_descriptor
 from stem.descriptor.server_descriptor import RelayDescriptor, BridgeDescriptor
 import test.runner
-from test.mocking import get_relay_server_descriptor, get_bridge_server_descriptor, CRYPTO_BLOB
+from test.mocking import get_relay_server_descriptor, get_bridge_server_descriptor, CRYPTO_BLOB, sign_descriptor_content
 
 class TestServerDescriptor(unittest.TestCase):
   def test_minimal_relay_descriptor(self):
@@ -23,10 +23,7 @@ class TestServerDescriptor(unittest.TestCase):
     
     self.assertEquals("caerSidi", desc.nickname)
     self.assertEquals("71.35.133.197", desc.address)
-    self.assertEquals(None, desc.fingerprint)
     self.assertTrue(CRYPTO_BLOB in desc.onion_key)
-    self.assertTrue(CRYPTO_BLOB in desc.signing_key)
-    self.assertTrue(CRYPTO_BLOB in desc.signature)
   
   def test_with_opt(self):
     """
@@ -148,6 +145,7 @@ class TestServerDescriptor(unittest.TestCase):
     self._expect_invalid_attr(desc_text, "published")
     
     desc_text = get_relay_server_descriptor({"published": "2012-02-29 04:03:19"}, content = True)
+    desc_text = sign_descriptor_content(desc_text)
     expected_published = datetime.datetime(2012, 2, 29, 4, 3, 19)
     self.assertEquals(expected_published, RelayDescriptor(desc_text).published)
   
@@ -200,6 +198,7 @@ class TestServerDescriptor(unittest.TestCase):
     
     desc_text = "@pepperjack very tasty\n@mushrooms not so much\n"
     desc_text += get_relay_server_descriptor(content = True)
+    desc_text = sign_descriptor_content(desc_text)
     desc_text += "\ntrailing text that should be ignored, ho hum"
     
     # running parse_file should provide an iterator with a single descriptor
@@ -242,15 +241,6 @@ class TestServerDescriptor(unittest.TestCase):
         self.assertEquals(None, desc.or_port)
         self.assertEquals(None, desc.socks_port)
         self.assertEquals(None, desc.dir_port)
-  
-  def test_fingerprint_valid(self):
-    """
-    Checks that a fingerprint matching the hash of our signing key will validate.
-    """
-    
-    fingerprint = "4F0C 867D F0EF 6816 0568 C826 838F 482C EA7C FE44"
-    desc = get_relay_server_descriptor({"opt fingerprint": fingerprint})
-    self.assertEquals(fingerprint.replace(" ", ""), desc.fingerprint)
   
   def test_fingerprint_invalid(self):
     """
