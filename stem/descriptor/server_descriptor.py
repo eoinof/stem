@@ -597,15 +597,13 @@ class RelayDescriptor(ServerDescriptor):
     
     super(RelayDescriptor, self).__init__(raw_contents, validate, annotations)
     
-    #Ensure the digest of the descriptor has been calculated
-    self.digest()
-    
-    #Validate the descriptor if required.
-    if validate and not self.is_valid():
-      log.error("Descriptor info not valid")
-      raise ValueError("Invalid data")
+    # validate the descriptor if required
+    if validate:
+      # ensure the digest of the descriptor has been calculated
+      self.digest()
+      self._validate_content()
   
-  def is_valid(self):
+  def _validate_content(self):
     """
     Validates that our content matches our signature.
     
@@ -616,9 +614,10 @@ class RelayDescriptor(ServerDescriptor):
     
     if not self.signature:
       log.warn("Signature missing")
-      return False
+      raise ValueError("Signature missing")
     
-    #Calculate the signing key hash.
+    # calculate the signing key hash
+    # TODO - explain this!!
     key_as_string = ''.join(self.signing_key.split('\n')[1:4])
     key_as_der = base64.b64decode(key_as_string)
     key_der_as_hash = hashlib.sha1(key_as_der).hexdigest()
@@ -628,22 +627,20 @@ class RelayDescriptor(ServerDescriptor):
     if self.fingerprint:
       if key_der_as_hash != self.fingerprint.lower():
         log.warn("Hash of our signing key doesn't match our fingerprint. Signing key hash: %s, fingerprint: %s" % (key_der_as_hash, self.fingerprint.lower()))
-        return False
+        raise ValueError("Fingerprint does not match hash")
     else:
-      #TODO - what is the purpose of allowing a NULL fingerprint ?
-      log.warn("No fingerprint for this descriptor")
+      log.notice("No fingerprint for this descriptor")
     
-    if self._verify_descriptor(key_as_der):
-      return True
-    else:
-      log.warn("Failed to verify descriptor")
-      #FIXME - stopgap measure until tests are fixed.
-      #return False
-      return True
+    try:
+      self._verify_descriptor(key_as_der)
+      log.info("Descriptor verified.")
+    except ValueError, e:
+      log.warn("Failed to verify descriptor: %s" % e)
+      raise e
   
   def digest(self):
     # Digest is calculated from everything in the
-    # descriptor except the router-signature
+    # descriptor except the router-signature.
     raw_descriptor = str(self)
     start_token = "router "
     sig_token = "\nrouter-signature\n"
@@ -656,7 +653,7 @@ class RelayDescriptor(ServerDescriptor):
       self._digest = digest_hash.digest()
     else:
       log.warn("unable to calculate digest for descriptor")
-      #TODO should we raise here ?
+      raise ValueError("unable to calculate digest for descriptor")
     
     return self._digest
   
@@ -696,25 +693,22 @@ class RelayDescriptor(ServerDescriptor):
     return str(self).strip() > str(other).strip()
   
   def _verify_descriptor(self, key_as_der):
-    # Get the ASN.1 sequence
+    # get the ASN.1 sequence
     seq = asn1.DerSequence()
     seq.decode(key_as_der)
     modulus = seq[0]
     public_exponent = seq[1] #should always be 65537
     
-    #Convert the descriptor signature to an int before decrypting it.
+    # convert the descriptor signature to an int before decrypting it
     sig_as_string = ''.join(self.signature.split('\n')[1:4])
     sig_as_bytes = base64.b64decode(sig_as_string)
     sig_as_long = bytes_to_long(sig_as_bytes)
     
-    ##################
-    ##PROPER MESSING!!
-    ##################
-    # Use the public exponent[e] & the modulus[n] to decrypt the int.
+    # use the public exponent[e] & the modulus[n] to decrypt the int
     decrypted_int = pow(sig_as_long, public_exponent ,modulus)
-    # Block size will always be 128 for a 1024 bit key
+    # block size will always be 128 for a 1024 bit key
     blocksize = 128
-    # Convert the int to a byte array.
+    # convert the int to a byte array.
     decrypted_bytes = long_to_bytes(decrypted_int, blocksize)
     
     ############################################################################
@@ -730,11 +724,11 @@ class RelayDescriptor(ServerDescriptor):
     ############################################################################
     try:
       if decrypted_bytes.index('\x00\x01') != 0:
-        log.warn("Verification failed.")
-        return False
+        log.warn("Verification failed, identifier missing")
+        raise ValueError("Verification failed, identifier missing")
     except ValueError:
-      log.warn("Verification failed, Malformed data.")
-      return False
+      log.warn("Verification failed, Malformed data")
+      raise ValueError("Verification failed, Malformed data")
     
     try:
       identifier_offset = 2
@@ -742,14 +736,12 @@ class RelayDescriptor(ServerDescriptor):
       seperator_index = decrypted_bytes.index('\x00', identifier_offset)
     except ValueError:
       log.warn("Verification failed, seperator not found")
-      return False
+      raise ValueError("Verification failed, seperator not found")
     
     message_buffer = decrypted_bytes[seperator_index+1:]
     if message_buffer != self._digest:
-      log.warn("Signature does not verify digest:")
-      return False
-    
-    return True
+      log.warn("Signature does not match digest")
+      raise ValueError("Signature does not match digest")
 
 class BridgeDescriptor(ServerDescriptor):
   """
